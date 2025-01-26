@@ -1,10 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
-import http from 'http';
 
-const server = http.createServer();
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ port : 8080 });
 
-const PORT = 8080;
 
 interface User {
     socket: WebSocket;
@@ -44,23 +41,5 @@ wss.on("connection", (socket) => {
 
     socket.on("close", () => {
         allSockets = allSockets.filter(x => x.socket !== socket);
-    });
-});
-
-server.listen(PORT, () => {
-    console.log(`WebSocket server is running on port ${PORT}`);
-});
-
-// Handle CORS preflight requests
-server.on('upgrade', (request, socket, head) => {
-    const origin = request.headers.origin;
-    if (!origin) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
-    }
-
-    wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
     });
 });
