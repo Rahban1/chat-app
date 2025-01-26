@@ -1,30 +1,32 @@
 import { WebSocketServer, WebSocket } from "ws";
+import http from 'http';
 
-const wss = new WebSocketServer({ port: 8080 });
+const server = http.createServer();
+const wss = new WebSocketServer({ server });
+
+const PORT = 8080;
 
 interface User {
-    socket : WebSocket
-    room : string
+    socket: WebSocket;
+    room: string;
 }
 
 let allSockets: User[] = [];
 
-wss.on("connection",(socket)=>{
+wss.on("connection", (socket) => {
     console.log("user is connected");
 
-    socket.on("message", (message)=>{
-        // user is not sending "hi there" now, now he will send full objects of which message is a part
+    socket.on("message", (message) => {
         const parsedMessage = JSON.parse(message as unknown as string);
-        if(parsedMessage.type === 'join') {
+        if (parsedMessage.type === 'join') {
             allSockets.push({
                 socket,
-                room : parsedMessage.payload.roomId
-            })
+                room: parsedMessage.payload.roomId
+            });
         }
-        if(parsedMessage.type === 'chat') {
-            let currentUserRoom = allSockets.find(x => x.socket == socket)?.room
+        if (parsedMessage.type === 'chat') {
+            let currentUserRoom = allSockets.find(x => x.socket == socket)?.room;
             
-            // Send the complete message object instead of just the message text
             const messageToSend = JSON.stringify({
                 type: 'chat',
                 payload: {
@@ -37,17 +39,28 @@ wss.on("connection",(socket)=>{
             allSockets
                 .filter((s) => s.room === currentUserRoom)
                 .forEach(s => s.socket.send(messageToSend));
-            
         }
+    });
 
-        
-        
-    })
+    socket.on("close", () => {
+        allSockets = allSockets.filter(x => x.socket !== socket);
+    });
+});
 
-    socket.on("close",()=>{
-        allSockets = allSockets.filter(x => x.socket !== socket)
-    })
+server.listen(PORT, () => {
+    console.log(`WebSocket server is running on port ${PORT}`);
+});
 
-    
+// Handle CORS preflight requests
+server.on('upgrade', (request, socket, head) => {
+    const origin = request.headers.origin;
+    if (!origin) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+    }
 
-})
+    wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+    });
+});
